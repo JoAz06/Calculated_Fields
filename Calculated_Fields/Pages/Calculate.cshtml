@@ -4,31 +4,34 @@
     ViewData["Title"] = "Calculate";
 }
 <form method="post">
-    <div class="Field">
-    <label for="text1">@Model.text1.name :</label>
-    <input asp-for="text1.value" id="text1"class="form-control" value=@Model.text1.value/>
-    <input asp-for="text1.name" id="text1" class="form-control" value=@Model.text1.name 
-    hidden=@(! Model.ShowRename1)/>
-    <button type="submit" asp-page-handler="rename1">rename</button>
-    <br />
-    </div>
-    <div class="Field">
-    <label for="text2">@Model.text2.name :</label>
-    <input asp-for="text2.value" id="text2" class="form-control" value=@Model.text2.value />
-    <input asp-for="text2.name" id="text2" class="form-control" value=@Model.text2.name hidden=@(!Model.ShowRename2) />
-        <button type="submit" asp-page-handler="rename2">rename</button>
-    <br/>
-    </div>
-    <div class="Field">
-    <label for="text3">@Model.text3.name :</label>
-    <input asp-for="text3.value" id="text3" class="form-control" value=@Model.text3.value />
-    <input asp-for="text3.name" id="text3" class="form-control" value=@Model.text3.name hidden=@(!Model.ShowRename3) />
-        <button type="submit" asp-page-handler="rename3">rename</button>
-    <br />
-    </div>
-    <button type="submit" asp-page-handler="Calculate">Calculate</button>
-    <div>
-        Result: @Model.result
-    </div>
-    
+    @for(int i = 0 ; i < Model.AllFields.Count; i++){
+        <div class="Field">
+            <label for="AllFields[@i].name">@Model.AllFields[i].name :</label>
+            <input asp-for="AllFields[@i].Id" type="hidden"/>
+            <input asp-for="AllFields[@i].value" />
+            <input asp-for="AllFields[@i].name" hidden=@(Model.GettingRenamed.Contains(Model.AllFields[@i].Id) ? "" : "hidden") />
+            <button type="submit" asp-page-handler="Rename" asp-route-id=@Model.AllFields[i].Id>rename</button>
+
+            @if (Model.AllFields[i].type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
+                <p>
+                    Result :
+                    <span>
+                            @{
+                                if (Model.Results.TryGetValue(Model.AllFields[i].Id, out var result))
+                                {
+                                    @Html.Encode(result);
+                                }
+                                else
+                                {
+                                    @Html.Encode("Error in calculation");
+                                }
+                            }
+                    </span>
+                </p>
+            }
+        <br/>
+        </div>
+        }
+        <button type="submit" asp-page-handler="Calculate">Calculate</button>
+
 </form>
