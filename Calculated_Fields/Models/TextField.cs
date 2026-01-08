@@ -12,5 +12,17 @@
         public Type type { get; set; }
         public string value { get; set; }
 
+        public TextField() { }
+
+        public TextField(string name, string value, bool type) {
+            this.name = name;
+            this.value = value;
+            if (type) {
+                this.type = Type.CALCULATED;
+            } else {
+                this.type = Type.NUMERICAL;
+            }
+        }
+
     }
 }

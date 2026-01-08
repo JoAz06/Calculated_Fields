@@ -16,13 +16,13 @@ namespace Calculated_Fields.Pages{
             _context = context;
             AllFields ??= new List<TextField>();
             Results ??= new Dictionary<int, string>();
-            GettingRenamed ??= new HashSet<int>();
         }
 
         [BindProperty(SupportsGet = true)]
         public List<TextField> AllFields { get; set; }
         public Dictionary<int,string> Results { get; set; }
-        public HashSet<int> GettingRenamed { get; set; }
+        [BindProperty]
+        public HashSet<int> GettingRenamed { get; set; } = new HashSet<int>();
 
         public async Task<IActionResult> OnGetAsync(){
             AllFields = await _context.TextField.ToListAsync();
@@ -35,7 +35,6 @@ namespace Calculated_Fields.Pages{
         }   
 
         public async Task<IActionResult> OnPostCalculateAsync() {
-            GettingRenamed ??= new HashSet<int>();
             foreach (TextField field in AllFields) {
                 var toBeUpdated = _context.TextField.Find(field.Id);
                 if (toBeUpdated != null) {
@@ -48,33 +47,65 @@ namespace Calculated_Fields.Pages{
             }
             _context.SaveChanges();
             AllFields = await _context.TextField.ToListAsync();
+            GettingRenamed.Clear();
             return Page();
         }
-
-        public async Task<IActionResult> OnPostRenameAsync(int Id) {
+        
+        /*public async Task<IActionResult> OnPostRenameAsync(int Id) {
             GettingRenamed.Add(Id);
             Console.WriteLine(GettingRenamed.Contains(1));
+            return Page();
+        }*/
+
+        public async Task<IActionResult> OnPostAddFieldAsync(string name, string value, string type) {
+            TextField newTextField = new TextField(name,value,(string.Equals(type,"on")? true:false));
+            _context.TextField.Add(newTextField);
+            await _context.SaveChangesAsync();
             return RedirectToPage();
         }
 
-        public async Task<IActionResult> OnPostAddField() {
-            return Page();
+        public async Task<IActionResult> OnPostRemoveFieldAsync(int Id) {
+            try {
+                _context.TextField.Remove(_context.TextField.Find(Id));
+                await _context.SaveChangesAsync();
+            }
+            catch {
+                Console.WriteLine("Field with specific Id does not exist.");
+            }
+            return RedirectToPage();
         }
 
         public void Calculater(TextField toBeUpdated) {
             var expression = new Expression(toBeUpdated.value);
+            bool valid = true;
             foreach (TextField field2 in AllFields) {
-                if (field2.Id != toBeUpdated.Id)
-                    expression.Parameters[field2.name] = double.Parse(field2.value);
+                if (field2.Id != toBeUpdated.Id) {
+                    if (double.TryParse(field2.value, out double subResult))
+                        expression.Parameters[field2.name] = double.Parse(field2.value);
+                    else {
+                        //this only works if the field was already calculated, if any field was used before calculation it will recieve a value of 0
+                        if (Results.TryGetValue(field2.Id, out string resultValue) && double.TryParse(resultValue,out double ParsedResult))
+                            expression.Parameters[field2.name] = ParsedResult;
+                        else if (! Results.ContainsKey(field2.Id)) {
+                            Results[toBeUpdated.Id] = "One of the fields was used before calculation.";
+                            valid = false;
+                            break;
+                        }
+                        else
+                            expression.Parameters[field2.name] = 0;
+                    }
+                }
             }
-            try {
-                Results[toBeUpdated.Id] = expression.Evaluate().ToString();
-            }
-            catch (NCalc.EvaluationException) {
-                Results[toBeUpdated.Id] = "You used invalid syntax."; 
-            }
-            catch {
-                Results[toBeUpdated.Id] = "An unkown error has occurred while calculating.";
+            if (valid) {
+                try {
+                    Results[toBeUpdated.Id] = expression.Evaluate().ToString();
+                }
+                catch (NCalc.EvaluationException) {
+                    Results[toBeUpdated.Id] = "You used invalid syntax.";
+                }
+                catch {
+                    Results[toBeUpdated.Id] = "An unkown error has occurred while calculating.";
+                }
             }
         }
     }

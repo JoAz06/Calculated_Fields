@@ -2,15 +2,29 @@
 @model Calculated_Fields.Pages.CalculateModel
 @{
     ViewData["Title"] = "Calculate";
+    //hidden=@(!Model.GettingRenamed.Contains(Model.AllFields[@i].Id) ? "" : "hidden")
 }
+
+<form method="post">
+    <label for="name">Name :</label>
+    <input name="name" type="text"/>
+    <label for="value">Value :</label>
+    <input name="value" type="text"/>
+    <label for="type">Is Calculated :</label>
+    <input name="type" type="checkbox"/>
+
+    <button type="submit" asp-page-handler="AddField">Add Field</button>
+</form>
+
 <form method="post">
     @for(int i = 0 ; i < Model.AllFields.Count; i++){
         <div class="Field">
             <label for="AllFields[@i].name">@Model.AllFields[i].name :</label>
             <input asp-for="AllFields[@i].Id" type="hidden"/>
             <input asp-for="AllFields[@i].value" />
-            <input asp-for="AllFields[@i].name" hidden=@(Model.GettingRenamed.Contains(Model.AllFields[@i].Id) ? "" : "hidden") />
-            <button type="submit" asp-page-handler="Rename" asp-route-id=@Model.AllFields[i].Id>rename</button>
+            <input asp-for="AllFields[@i].name"  />
+            <!--<button type="submit" asp-for="GettingRenamed" asp-page-handler="Rename" asp-route-id=@Model.AllFields[i].Id>rename</button>-->
+            <button type="submit" asp-page-handler="RemoveField" asp-route-id=@Model.AllFields[i].Id>remove</button>
 
             @if (Model.AllFields[i].type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
                 <p>
