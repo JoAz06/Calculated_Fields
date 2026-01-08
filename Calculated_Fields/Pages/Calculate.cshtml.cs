@@ -28,7 +28,7 @@ namespace Calculated_Fields.Pages{
             AllFields = await _context.TextField.ToListAsync();
             foreach (TextField field in AllFields) {
                 if (field.type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
-                    Calculater(field);
+                    Calculater(field,AllFields.FindIndex(x => x.Id == field.Id));
                 }
             }
             return Page();
@@ -41,7 +41,7 @@ namespace Calculated_Fields.Pages{
                     toBeUpdated.name = field.name;
                     toBeUpdated.value = field.value;
                     if (toBeUpdated.type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
-                        Calculater(toBeUpdated);
+                        Calculater(toBeUpdated,AllFields.FindIndex(x => x.Id == field.Id));
                     }
                 }
             }
@@ -50,12 +50,6 @@ namespace Calculated_Fields.Pages{
             GettingRenamed.Clear();
             return Page();
         }
-        
-        /*public async Task<IActionResult> OnPostRenameAsync(int Id) {
-            GettingRenamed.Add(Id);
-            Console.WriteLine(GettingRenamed.Contains(1));
-            return Page();
-        }*/
 
         public async Task<IActionResult> OnPostAddFieldAsync(string name, string value, string type) {
             TextField newTextField = new TextField(name,value,(string.Equals(type,"on")? true:false));
@@ -75,10 +69,15 @@ namespace Calculated_Fields.Pages{
             return RedirectToPage();
         }
 
-        public void Calculater(TextField toBeUpdated) {
+
+        //Needs to be replaced with the use of SquareBracked/Dynamic parameters in NCalc so that fields can be calculated even if they contains special characters or uncalculated parameters.
+        public void Calculater(TextField toBeUpdated, int limitIndex) {
             var expression = new Expression(toBeUpdated.value);
             bool valid = true;
+            int counter = 0;
             foreach (TextField field2 in AllFields) {
+                if (limitIndex != -1 && counter >= limitIndex)
+                    break;
                 if (field2.Id != toBeUpdated.Id) {
                     if (double.TryParse(field2.value, out double subResult))
                         expression.Parameters[field2.name] = double.Parse(field2.value);
@@ -95,6 +94,7 @@ namespace Calculated_Fields.Pages{
                             expression.Parameters[field2.name] = 0;
                     }
                 }
+                counter++;
             }
             if (valid) {
                 try {
