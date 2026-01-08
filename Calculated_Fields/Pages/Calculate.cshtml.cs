@@ -74,10 +74,7 @@ namespace Calculated_Fields.Pages{
         public void Calculater(TextField toBeUpdated, int limitIndex) {
             var expression = new Expression(toBeUpdated.value);
             bool valid = true;
-            int counter = 0;
             foreach (TextField field2 in AllFields) {
-                if (limitIndex != -1 && counter >= limitIndex)
-                    break;
                 if (field2.Id != toBeUpdated.Id) {
                     if (double.TryParse(field2.value, out double subResult))
                         expression.Parameters[field2.name] = double.Parse(field2.value);
@@ -94,7 +91,6 @@ namespace Calculated_Fields.Pages{
                             expression.Parameters[field2.name] = 0;
                     }
                 }
-                counter++;
             }
             if (valid) {
                 try {
