@@ -24,15 +24,33 @@ namespace Calculated_Fields.Pages{
         [BindProperty]
         public HashSet<int> GettingRenamed { get; set; } = new HashSet<int>();
 
+        public Dictionary<string, TextField> OriginalNamesDict { get; set; } = new Dictionary<string, TextField>();
+        public Dictionary<string, string> GeneratedNamesDict { get; set; } = new Dictionary<string, string>();
+
         public async Task<IActionResult> OnGetAsync(){
             AllFields = await _context.TextField.ToListAsync();
+            OriginalNamesDict = (AllFields.OrderByDescending(field => field.name.Length)).ToDictionary(field => field.name.Trim(), field => field);
+            int index = 0;
+            foreach (var pair in OriginalNamesDict) {
+                string newName = "__val" + index++;
+                GeneratedNamesDict.Add(newName, pair.Key);
+                foreach (var pair2 in OriginalNamesDict) {
+                    pair2.Value.value = pair2.Value.value.Replace(pair.Key, newName);
+                    // regex = (?<=[-+\*\/% ]?)name(?=[-+\*\/% ]?)
+                }
+            }
+
+
+
+
+
             foreach (TextField field in AllFields) {
                 if (field.type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
                     Calculater(field,AllFields.FindIndex(x => x.Id == field.Id));
                 }
             }
             return Page();
-        }   
+        }
 
         public async Task<IActionResult> OnPostCalculateAsync() {
             foreach (TextField field in AllFields) {
@@ -69,8 +87,6 @@ namespace Calculated_Fields.Pages{
             return RedirectToPage();
         }
 
-
-        //Needs to be replaced with the use of SquareBracked/Dynamic parameters in NCalc so that fields can be calculated even if they contains special characters or uncalculated parameters.
         public void Calculater(TextField toBeUpdated, int limitIndex) {
             var expression = new Expression(toBeUpdated.value);
             bool valid = true;
@@ -97,7 +113,7 @@ namespace Calculated_Fields.Pages{
                     Results[toBeUpdated.Id] = expression.Evaluate().ToString();
                 }
                 catch (NCalc.EvaluationException) {
-                    Results[toBeUpdated.Id] = "You used invalid syntax.";
+                    Results[toBeUpdated.Id] = "You used invalid syntax.";   
                 }
                 catch {
                     Results[toBeUpdated.Id] = "An unkown error has occurred while calculating.";
