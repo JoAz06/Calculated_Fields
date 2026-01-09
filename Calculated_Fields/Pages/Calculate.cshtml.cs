@@ -3,6 +3,7 @@ using Calculated_Fields.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using NCalc;
 using System.Collections;
 using System.Diagnostics.Eventing.Reader;
@@ -15,38 +16,18 @@ namespace Calculated_Fields.Pages{
         {
             _context = context;
             AllFields ??= new List<TextField>();
-            Results ??= new Dictionary<int, string>();
+            Results ??= new Dictionary<int, double>();
         }
 
         [BindProperty(SupportsGet = true)]
         public List<TextField> AllFields { get; set; }
-        public Dictionary<int,string> Results { get; set; }
-        [BindProperty]
-        public HashSet<int> GettingRenamed { get; set; } = new HashSet<int>();
-
-        public Dictionary<string, TextField> OriginalNamesDict { get; set; } = new Dictionary<string, TextField>();
-        public Dictionary<string, string> GeneratedNamesDict { get; set; } = new Dictionary<string, string>();
+        public Dictionary<int,double> Results { get; set; }
 
         public async Task<IActionResult> OnGetAsync(){
             AllFields = await _context.TextField.ToListAsync();
-            OriginalNamesDict = (AllFields.OrderByDescending(field => field.name.Length)).ToDictionary(field => field.name.Trim(), field => field);
-            int index = 0;
-            foreach (var pair in OriginalNamesDict) {
-                string newName = "__val" + index++;
-                GeneratedNamesDict.Add(newName, pair.Key);
-                foreach (var pair2 in OriginalNamesDict) {
-                    pair2.Value.value = pair2.Value.value.Replace(pair.Key, newName);
-                    // regex = (?<=[-+\*\/% ]?)name(?=[-+\*\/% ]?)
-                }
-            }
-
-
-
-
-
             foreach (TextField field in AllFields) {
                 if (field.type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
-                    Calculater(field,AllFields.FindIndex(x => x.Id == field.Id));
+                    Calculate(field);
                 }
             }
             return Page();
@@ -56,21 +37,20 @@ namespace Calculated_Fields.Pages{
             foreach (TextField field in AllFields) {
                 var toBeUpdated = _context.TextField.Find(field.Id);
                 if (toBeUpdated != null) {
-                    toBeUpdated.name = field.name;
+                    toBeUpdated.name = field.name.Trim();
                     toBeUpdated.value = field.value;
                     if (toBeUpdated.type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
-                        Calculater(toBeUpdated,AllFields.FindIndex(x => x.Id == field.Id));
+                        Calculate(toBeUpdated);
                     }
                 }
             }
             _context.SaveChanges();
             AllFields = await _context.TextField.ToListAsync();
-            GettingRenamed.Clear();
             return Page();
         }
 
         public async Task<IActionResult> OnPostAddFieldAsync(string name, string value, string type) {
-            TextField newTextField = new TextField(name,value,(string.Equals(type,"on")? true:false));
+            TextField newTextField = new TextField(name.Trim(),value,(string.Equals(type,"on")? true:false));
             _context.TextField.Add(newTextField);
             await _context.SaveChangesAsync();
             return RedirectToPage();
@@ -87,38 +67,36 @@ namespace Calculated_Fields.Pages{
             return RedirectToPage();
         }
 
-        public void Calculater(TextField toBeUpdated, int limitIndex) {
+        public void Calculate(TextField toBeUpdated) {
+            HashSet<string> callStack = new HashSet<string>();
+            Results[toBeUpdated.Id] = Calculate(toBeUpdated, callStack);
+        }
+
+        private double Calculate(TextField toBeUpdated, HashSet<string> callStack) {
+            if(Results.ContainsKey(toBeUpdated.Id)) {
+                Console.WriteLine("Value was used from cache");
+                return Results[toBeUpdated.Id];
+
+            }
+            if (callStack.Contains(toBeUpdated.name)) {
+                throw new Exception("Circular reference occured");
+            }
+            callStack.Add(toBeUpdated.name);
             var expression = new Expression(toBeUpdated.value);
-            bool valid = true;
-            foreach (TextField field2 in AllFields) {
-                if (field2.Id != toBeUpdated.Id) {
-                    if (double.TryParse(field2.value, out double subResult))
-                        expression.Parameters[field2.name] = double.Parse(field2.value);
-                    else {
-                        //this only works if the field was already calculated, if any field was used before calculation it will recieve a value of 0
-                        if (Results.TryGetValue(field2.Id, out string resultValue) && double.TryParse(resultValue,out double ParsedResult))
-                            expression.Parameters[field2.name] = ParsedResult;
-                        else if (! Results.ContainsKey(field2.Id)) {
-                            Results[toBeUpdated.Id] = "One of the fields was used before calculation.";
-                            valid = false;
-                            break;
-                        }
-                        else
-                            expression.Parameters[field2.name] = 0;
-                    }
+            expression.EvaluateParameter += (name, args) =>
+            {
+                TextField internalField = AllFields.FirstOrDefault(field => field.name == name);
+                if (internalField == null) {
+                    throw new Exception("Variable does not exist");
                 }
-            }
-            if (valid) {
-                try {
-                    Results[toBeUpdated.Id] = expression.Evaluate().ToString();
+                else {
+                    args.Result = Calculate(internalField,callStack);
                 }
-                catch (NCalc.EvaluationException) {
-                    Results[toBeUpdated.Id] = "You used invalid syntax.";   
-                }
-                catch {
-                    Results[toBeUpdated.Id] = "An unkown error has occurred while calculating.";
-                }
-            }
+            };
+            double result = double.Parse(expression.Evaluate().ToString());
+            callStack.Remove(toBeUpdated.name);
+            Results[toBeUpdated.Id] = result;
+            return result;
         }
     }
     

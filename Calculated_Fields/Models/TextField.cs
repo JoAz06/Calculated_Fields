@@ -1,4 +1,5 @@
-﻿namespace Calculated_Fields.Models
+﻿using System.ComponentModel.DataAnnotations;
+namespace Calculated_Fields.Models
 {
     public enum Type
     {
@@ -8,8 +9,11 @@
     public class TextField
     {
         public int Id { get; set; }
+        [Required]
         public string name { get; set; }
+        [Required]
         public Type type { get; set; }
+        [Required]
         public string value { get; set; }
 
         public TextField() { }
