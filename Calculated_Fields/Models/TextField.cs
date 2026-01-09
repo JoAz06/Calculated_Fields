@@ -10,10 +10,12 @@ namespace Calculated_Fields.Models
     {
         public int Id { get; set; }
         [Required]
+        [StringLength(50, MinimumLength = 1)]
         public string name { get; set; }
         [Required]
         public Type type { get; set; }
         [Required]
+        [StringLength(50, MinimumLength = 1)]
         public string value { get; set; }
 
         public TextField() { }

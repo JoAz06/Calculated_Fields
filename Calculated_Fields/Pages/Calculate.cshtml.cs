@@ -50,25 +50,31 @@ namespace Calculated_Fields.Pages{
         }
 
         public async Task<IActionResult> OnPostAddFieldAsync(string name, string value, string type) {
-            TextField newTextField = new TextField(name.Trim(),value,(string.Equals(type,"on")? true:false));
+            if (string.IsNullOrWhiteSpace(name)) {
+                return RedirectToPage();
+            }
+            if (string.IsNullOrWhiteSpace(value)) {
+                value = 0.ToString();
+            }
+            TextField newTextField = new(name.Trim(),value,(string.Equals(type,"on") ? true:false));
             _context.TextField.Add(newTextField);
             await _context.SaveChangesAsync();
             return RedirectToPage();
         }
 
         public async Task<IActionResult> OnPostRemoveFieldAsync(int Id) {
-            try {
-                _context.TextField.Remove(_context.TextField.Find(Id));
+            if(_context.TextField.Find(Id) != null) {
+                _context.TextField.Remove(_context.TextField.Find(Id)!);
                 await _context.SaveChangesAsync();
             }
-            catch {
+            else {
                 Console.WriteLine("Field with specific Id does not exist.");
             }
             return RedirectToPage();
         }
 
         public void Calculate(TextField toBeUpdated) {
-            HashSet<string> callStack = new HashSet<string>();
+            HashSet<string> callStack = new();
             Results[toBeUpdated.Id] = Calculate(toBeUpdated, callStack);
         }
 
@@ -85,7 +91,7 @@ namespace Calculated_Fields.Pages{
             var expression = new Expression(toBeUpdated.value);
             expression.EvaluateParameter += (name, args) =>
             {
-                TextField internalField = AllFields.FirstOrDefault(field => field.name == name);
+                TextField internalField = AllFields.FirstOrDefault(field => field.name == name)!;
                 if (internalField == null) {
                     throw new Exception("Variable does not exist");
                 }
@@ -93,7 +99,7 @@ namespace Calculated_Fields.Pages{
                     args.Result = Calculate(internalField,callStack);
                 }
             };
-            double result = double.Parse(expression.Evaluate().ToString());
+            double result = double.Parse(expression.Evaluate().ToString()!);
             callStack.Remove(toBeUpdated.name);
             Results[toBeUpdated.Id] = result;
             return result;
