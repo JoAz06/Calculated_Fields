@@ -25,22 +25,22 @@
             <button type="button" onclick="Rename(@(Model.AllFields[i].Id))">rename</button>
             <button type="submit" asp-page-handler="RemoveField" asp-route-id=@Model.AllFields[i].Id>remove</button>
 
-            @if (Model.AllFields[i].type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
-                <p>
-                    Result :
-                    <span>
-                            @{
-                                if (Model.Results.TryGetValue(Model.AllFields[i].Id, out var result))
-                                {
-                                    @Html.Encode(result);
-                                }
-                                else
-                                {
-                                    @Html.Encode("Error in calculation");
-                                }
-                            }
-                    </span>
-                </p>
+                @{
+                    if (Model.AllFields[i].type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
+                        if (Model.Results.TryGetValue(Model.AllFields[i].Id, out var result))
+                        {
+                        if (result.valid){
+                            @Html.Raw($"<p style=\"color:green\">{Html.Encode(result)}</p>")
+                        }
+                        else{
+                            @Html.Raw($"<p style=\"color:red\">{Html.Encode(result)}</p>")
+                        }
+                    }
+                    else
+                    {
+                        @Html.Encode("Unknown error ocurred.");
+                    }
+            }
             }
         <br/>
         </div>

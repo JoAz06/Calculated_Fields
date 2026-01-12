@@ -1,4 +1,6 @@
 using Antlr.Runtime.Collections;
+using Calculated_Fields.Data;
+using Calculated_Fields.Data.Exceptions;
 using Calculated_Fields.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,23 +9,24 @@ using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using NCalc;
 using System.Collections;
 using System.Diagnostics.Eventing.Reader;
+using System.Security.Cryptography.Xml;
 
 namespace Calculated_Fields.Pages{
     
-    public class CalculateModel : PageModel{
+    public class CalculateModel : PageModel {
         private readonly Calculated_Fields.Data.CalculatedTextFieldContext _context;
         public CalculateModel(Calculated_Fields.Data.CalculatedTextFieldContext context)
         {
             _context = context;
             AllFields ??= new List<TextField>();
-            Results ??= new Dictionary<int, double>();
+            Results ??= new Dictionary<int, FieldResult>();
         }
 
         [BindProperty(SupportsGet = true)]
         public List<TextField> AllFields { get; set; }
-        public Dictionary<int,double> Results { get; set; }
+        public Dictionary<int, FieldResult> Results { get; set; }
 
-        public async Task<IActionResult> OnGetAsync(){
+        public async Task<IActionResult> OnGetAsync() {
             AllFields = await _context.TextField.ToListAsync();
             foreach (TextField field in AllFields) {
                 if (field.type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
@@ -75,35 +78,60 @@ namespace Calculated_Fields.Pages{
 
         public void Calculate(TextField toBeUpdated) {
             HashSet<string> callStack = new();
-            Results[toBeUpdated.Id] = Calculate(toBeUpdated, callStack);
+            try {
+                Results[toBeUpdated.Id] = Calculate(toBeUpdated, callStack);
+            }
+            catch (CircularException ex) {
+                Results[toBeUpdated.Id] = new FieldResult(false, "Circular reference occured");
+            }
+            catch (MissingFieldException ex) {
+                Results[toBeUpdated.Id] = new FieldResult(false, "Variable does not exist");
+            }
         }
 
-        private double Calculate(TextField toBeUpdated, HashSet<string> callStack) {
-            if(Results.ContainsKey(toBeUpdated.Id)) {
-                Console.WriteLine("Value was used from cache");
-                return Results[toBeUpdated.Id];
-
-            }
-            if (callStack.Contains(toBeUpdated.name)) {
-                throw new Exception("Circular reference occured");
-            }
-            callStack.Add(toBeUpdated.name);
-            var expression = new Expression(toBeUpdated.value);
-            expression.EvaluateParameter += (name, args) =>
-            {
-                TextField internalField = AllFields.FirstOrDefault(field => field.name == name)!;
-                if (internalField == null) {
-                    throw new Exception("Variable does not exist");
+        private FieldResult Calculate(TextField toBeUpdated, HashSet<string> callStack) {
+            try {
+                if (Results.ContainsKey(toBeUpdated.Id)) {
+                    return Results[toBeUpdated.Id];
+                }
+                else if (callStack.Contains(toBeUpdated.name)) {
+                    throw new CircularException();
                 }
                 else {
-                    args.Result = Calculate(internalField,callStack);
+                    callStack.Add(toBeUpdated.name);
+                    var expression = new Expression(toBeUpdated.value);
+                    expression.EvaluateParameter += (name, args) => {
+                        TextField internalField = AllFields.FirstOrDefault(field => field.name == name);
+                        if (internalField == null) {
+                            throw new MissingFieldException();
+                        }
+                        else {
+                            FieldResult result = Calculate(internalField, callStack);
+                            if (result.valid) {
+                                args.Result = double.Parse(Calculate(internalField, callStack).result);
+                            }
+                            else if (result.result.Equals("Circular reference occured")) {
+                                throw new CircularException();
+                            }
+                            else if (result.result.Equals("Variable does not exist")) {
+                                throw new MissingFieldException();
+                            }
+                        }
+                    };
+                    double result = double.Parse(expression.Evaluate().ToString()!);
+                    callStack.Remove(toBeUpdated.name);
+                    Results[toBeUpdated.Id] = new FieldResult(true, result.ToString());
+                    return Results[toBeUpdated.Id];
                 }
-            };
-            double result = double.Parse(expression.Evaluate().ToString()!);
-            callStack.Remove(toBeUpdated.name);
-            Results[toBeUpdated.Id] = result;
-            return result;
+            }
+            catch (CircularException ex) {
+                Results[toBeUpdated.Id] = new FieldResult(false, "Circular reference occured");
+                throw ex;
+            }
+            catch (MissingFieldException ex) {
+                Results[toBeUpdated.Id] = new FieldResult(false, "Variable does not exist");
+                throw ex;
+            }
         }
     }
-    
 }
