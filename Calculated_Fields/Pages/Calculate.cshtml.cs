@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using NCalc;
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.Eventing.Reader;
 using System.Security.Cryptography.Xml;
 
@@ -25,6 +26,13 @@ namespace Calculated_Fields.Pages{
         [BindProperty(SupportsGet = true)]
         public List<TextField> AllFields { get; set; }
         public Dictionary<int, FieldResult> Results { get; set; }
+
+        public Dictionary<string, string> Functions = new Dictionary<string, string>{
+            { "Abs", "Abs()" },
+            { "Acos", "Acos()" },
+            { "Asin", "Asin()" },
+            { "Log", "Log(,)" }
+        };
 
         public async Task<IActionResult> OnGetAsync() {
             AllFields = await _context.TextField.ToListAsync();

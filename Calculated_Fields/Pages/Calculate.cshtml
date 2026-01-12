@@ -3,56 +3,67 @@
 @{
     ViewData["Title"] = "Calculate";
 }
+<div class="container">
+    <main>
+        <form method="post">
+            <label for="name">Name :</label>
+            <input name="name" type="text"/>
+            <label for="value">Value :</label>
+            <input name="value" type="text" ondragover="allowDrop(event)" ondrop="dropValue(event)" />
+            <label for="type">Is Calculated :</label>
+            <input name="type" type="checkbox"/>
+            <button type="submit" asp-page-handler="AddField">Add Field</button>
 
-<form method="post">
-    <label for="name">Name :</label>
-    <input name="name" type="text"/>
-    <label for="value">Value :</label>
-    <input name="value" type="text" ondragover="allowDrop(event)" ondrop="dropValue(event)" />
-    <label for="type">Is Calculated :</label>
-    <input name="type" type="checkbox"/>
+        </form>
+        <form form method="post">
+            <div id="fields" class="list-group">
+            @for(int i = 0 ; i < Model.AllFields.Count; i++){
+                    <div class="Field list-group-item">
+                    <span class="handle" style="cursor:grab;">☰</span>
+                    <span draggable="true" data-name="@Model.AllFields[i].name" ondragstart="dragStart(event,'data')">⩨</span>
+                    <label for="AllFields[@i].name">@Model.AllFields[i].name :</label>
+                    <input asp-for="AllFields[@i].Id" type="hidden"/>
+                    <input asp-for="AllFields[@i].value" ondragover="allowDrop(event)" ondrop="dropValue(event)" />
+                    <input asp-for="AllFields[@i].name" id="NameRename@(Model.AllFields[i].Id)" style="display:none"/>
+                    <button type="button" onclick="Rename(@(Model.AllFields[i].Id))">rename</button>
+                    <button type="submit" asp-page-handler="RemoveField" asp-route-id=@Model.AllFields[i].Id>remove</button>
 
-    <button type="submit" asp-page-handler="AddField">Add Field</button>
-</form>
-
-<form method="post">
-    <div id="fields" class="list-group">
-    @for(int i = 0 ; i < Model.AllFields.Count; i++){
-            <div class="Field list-group-item">
-            <span class="handle" style="cursor:grab;">☰</span>
-            <span draggable="true" data-name="@Model.AllFields[i].name" ondragstart="dragStart(event)">⩨</span>
-            <label for="AllFields[@i].name">@Model.AllFields[i].name :</label>
-            <input asp-for="AllFields[@i].Id" type="hidden"/>
-            <input asp-for="AllFields[@i].value" ondragover="allowDrop(event)" ondrop="dropValue(event)" />
-            <input asp-for="AllFields[@i].name" id="NameRename@(Model.AllFields[i].Id)" style="display:none"/>
-            <button type="button" onclick="Rename(@(Model.AllFields[i].Id))">rename</button>
-            <button type="submit" asp-page-handler="RemoveField" asp-route-id=@Model.AllFields[i].Id>remove</button>
-
-                @{
-                    if (Model.AllFields[i].type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
-                        if (Model.Results.TryGetValue(Model.AllFields[i].Id, out var result))
-                        {
-                        if (result.valid){
-                            @Html.Raw($"<p style=\"color:green\">{Html.Encode(result)}</p>")
-                        }
-                        else{
-                            @Html.Raw($"<p style=\"color:red\">{Html.Encode(result)}</p>")
-                        }
+                        @{
+                            if (Model.AllFields[i].type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
+                                if (Model.Results.TryGetValue(Model.AllFields[i].Id, out var result))
+                                {
+                                if (result.valid){
+                                    @Html.Raw($"<p style=\"color:green\">{Html.Encode(result)}</p>")
+                                }
+                                else{
+                                    @Html.Raw($"<p style=\"color:red\">{Html.Encode(result)}</p>")
+                                }
+                            }
+                            else
+                            {
+                                @Html.Encode("Unknown error ocurred.");
+                            }
                     }
-                    else
-                    {
-                        @Html.Encode("Unknown error ocurred.");
                     }
-            }
-            }
-        <br/>
-        </div>
+                <br/>
+                </div>
         
-    }
-    </div>
-     <button type="submit" asp-page-handler="Calculate">Calculate</button>
+            }
+            </div>
+             <button type="submit" asp-page-handler="Calculate">Calculate</button>
 
-</form>
+        </form>
+    </main>
+    <aside>
+        <h3>Cheat Sheet</h3>
+        @foreach(var function in Model.Functions) {
+            <div>
+                <span draggable="true" data-name="@function.Value" ondragstart="dragStart(event,'function')">⩨</span>
+                @function.Key
+            </div>
+        }
+    </aside>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
@@ -64,9 +75,9 @@
         preventOnFilter: false
     });
 
-    function dragStart(event) {
-        console.log("Dragging:", event.currentTarget.dataset.name);
-        event.dataTransfer.setData("text/plain", event.currentTarget.dataset.name);
+    function dragStart(event,type) {
+        event.dataTransfer.setData("name", event.currentTarget.dataset.name);
+        event.dataTransfer.setData("type", type);
     }
 
     function allowDrop(event) {
@@ -76,23 +87,32 @@
     function insertAtCursor(input, text){
         const start = input.selectionStart;
         const end = input.selectionEnd;
-        console.log("Inserting at:", start, end);
-        if (document.activeElement!==input){
-            input.value = input.value.substring(0, start) + text + input.value.substring(end);
-            input.selectionStart = input.selectionEnd = start + text.length;
-            input.focus();
+        const draggedName = event.dataTransfer.getData("name");
+        const type  = event.dataTransfer.getData("type");
+        input.value = input.value.substring(0, start) + text + input.value.substring(end);
+        if (type === 'function'){
+            if (draggedName.includes(',')){
+                input.selectionStart = input.selectionEnd = start + text.length - 3;
+            }else{
+                input.selectionStart = input.selectionEnd = start + text.length - 2;
+            }
         }else{
-            input.value += text;
-            input.focus();
+            input.selectionStart = input.selectionEnd = start + text.length;
         }
+        input.focus();
         
     }
 
     function dropValue(event) {
         event.preventDefault();
-        const draggedName = event.dataTransfer.getData("text/plain");
+        const draggedName = event.dataTransfer.getData("name");
+        const type  = event.dataTransfer.getData("type");
         const input = event.target;
-        insertAtCursor(input, " [" + draggedName + "] ");
+        if(type === 'function'){
+            insertAtCursor(input, " " + draggedName + " ");
+        }else{
+            insertAtCursor(input, " [" + draggedName + "] ");
+        }
     }
 
     function Rename(id) {
