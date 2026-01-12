@@ -8,7 +8,7 @@
     <label for="name">Name :</label>
     <input name="name" type="text"/>
     <label for="value">Value :</label>
-    <input name="value" type="text"/>
+    <input name="value" type="text" ondragover="allowDrop(event)" ondrop="dropValue(event)" />
     <label for="type">Is Calculated :</label>
     <input name="type" type="checkbox"/>
 
@@ -16,11 +16,14 @@
 </form>
 
 <form method="post">
+    <div id="fields" class="list-group">
     @for(int i = 0 ; i < Model.AllFields.Count; i++){
-        <div class="Field">
+            <div class="Field list-group-item">
+            <span class="handle" style="cursor:grab;">☰</span>
+            <span draggable="true" data-name="@Model.AllFields[i].name" ondragstart="dragStart(event)">⩨</span>
             <label for="AllFields[@i].name">@Model.AllFields[i].name :</label>
             <input asp-for="AllFields[@i].Id" type="hidden"/>
-            <input asp-for="AllFields[@i].value"/>
+            <input asp-for="AllFields[@i].value" ondragover="allowDrop(event)" ondrop="dropValue(event)" />
             <input asp-for="AllFields[@i].name" id="NameRename@(Model.AllFields[i].Id)" style="display:none"/>
             <button type="button" onclick="Rename(@(Model.AllFields[i].Id))">rename</button>
             <button type="submit" asp-page-handler="RemoveField" asp-route-id=@Model.AllFields[i].Id>remove</button>
@@ -44,11 +47,54 @@
             }
         <br/>
         </div>
-        }
-        <button type="submit" asp-page-handler="Calculate">Calculate</button>
+        
+    }
+    </div>
+     <button type="submit" asp-page-handler="Calculate">Calculate</button>
 
 </form>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
 <script>
+    new Sortable(document.getElementById('fields'), {
+        handle: '.handle',
+        ghostClass: 'blue-background-class',
+        animation: 150,
+        filter: 'input, button',
+        preventOnFilter: false
+    });
+
+    function dragStart(event) {
+        console.log("Dragging:", event.currentTarget.dataset.name);
+        event.dataTransfer.setData("text/plain", event.currentTarget.dataset.name);
+    }
+
+    function allowDrop(event) {
+        event.preventDefault();
+    }
+
+    function insertAtCursor(input, text){
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        console.log("Inserting at:", start, end);
+        if (document.activeElement!==input){
+            input.value = input.value.substring(0, start) + text + input.value.substring(end);
+            input.selectionStart = input.selectionEnd = start + text.length;
+            input.focus();
+        }else{
+            input.value += text;
+            input.focus();
+        }
+        
+    }
+
+    function dropValue(event) {
+        event.preventDefault();
+        const draggedName = event.dataTransfer.getData("text/plain");
+        const input = event.target;
+        insertAtCursor(input, " [" + draggedName + "] ");
+    }
+
     function Rename(id) {
         const input = document.getElementById("NameRename"+id);
         input.style.display = (input.style.display === 'none') ? 'block' : 'none';

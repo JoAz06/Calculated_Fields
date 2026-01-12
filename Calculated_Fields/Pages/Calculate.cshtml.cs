@@ -87,6 +87,9 @@ namespace Calculated_Fields.Pages{
             catch (MissingFieldException ex) {
                 Results[toBeUpdated.Id] = new FieldResult(false, "Variable does not exist");
             }
+            catch (NCalc.EvaluationException ex) {
+                Results[toBeUpdated.Id] = new FieldResult(false, "Invalid Syntax");
+            }
         }
 
         private FieldResult Calculate(TextField toBeUpdated, HashSet<string> callStack) {
@@ -118,7 +121,13 @@ namespace Calculated_Fields.Pages{
                             }
                         }
                     };
-                    double result = double.Parse(expression.Evaluate().ToString()!);
+                    double result;
+                    try {
+                        result = double.Parse(expression.Evaluate().ToString()!);
+                    }catch (NCalc.EvaluationException ex) {
+                        Results[toBeUpdated.Id] = new FieldResult(false, "Invalid Syntax");
+                        throw ex;
+                    }
                     callStack.Remove(toBeUpdated.name);
                     Results[toBeUpdated.Id] = new FieldResult(true, result.ToString());
                     return Results[toBeUpdated.Id];
