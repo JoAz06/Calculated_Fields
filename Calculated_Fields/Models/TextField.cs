@@ -6,16 +6,15 @@ namespace Calculated_Fields.Models
         NUMERICAL,
         CALCULATED
     }
-    public class TextField
-    {
+    public class TextField : IEquatable<TextField> {
         public int Id { get; set; }
         [Required]
-        [StringLength(50, MinimumLength = 1)]
+        [MinLength(1)]
         public string name { get; set; }
         [Required]
         public Type type { get; set; }
         [Required]
-        [StringLength(50, MinimumLength = 1)]
+        [MinLength(1)]
         public string value { get; set; }
 
         public TextField() { }
@@ -29,6 +28,16 @@ namespace Calculated_Fields.Models
                 this.type = Type.NUMERICAL;
             }
         }
+        public bool Equals(TextField? other) {
+            return other is not null && name.Equals(other.name);
+        }
 
+        public override bool Equals(object? obj) {
+            return Equals(obj as TextField);
+        }
+
+        public override int GetHashCode() {
+            return name?.GetHashCode() ?? 0;
+        }
     }
 }

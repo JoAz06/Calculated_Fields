@@ -9,7 +9,7 @@
             <label for="name">Name :</label>
             <input name="name" type="text"/>
             <label for="value">Value :</label>
-            <input name="value" type="text" ondragover="allowDrop(event)" ondrop="dropValue(event)" />
+            <input name="value" type="text" ondragover="allowDrop(event)" ondrop="dropValue(event)" class="completable" id="testerid"/>
             <label for="type">Is Calculated :</label>
             <input name="type" type="checkbox"/>
             <button type="submit" asp-page-handler="AddField">Add Field</button>
@@ -19,11 +19,11 @@
             <div id="fields" class="list-group">
             @for(int i = 0 ; i < Model.AllFields.Count; i++){
                     <div class="Field list-group-item">
-                    <span class="handle" style="cursor:grab;">☰</span>
                     <span draggable="true" data-name="@Model.AllFields[i].name" ondragstart="dragStart(event,'data')">⩨</span>
+                    <button onclick="pickValue('@Model.AllFields[i].name','data',event)">▨</button>
                     <label for="AllFields[@i].name">@Model.AllFields[i].name :</label>
                     <input asp-for="AllFields[@i].Id" type="hidden"/>
-                    <input asp-for="AllFields[@i].value" ondragover="allowDrop(event)" ondrop="dropValue(event)" />
+                    <input asp-for="AllFields[@i].value" ondragover="allowDrop(event)" ondrop="dropValue(event)" class="completable"/>
                     <input asp-for="AllFields[@i].name" id="NameRename@(Model.AllFields[i].Id)" style="display:none"/>
                     <button type="button" onclick="Rename(@(Model.AllFields[i].Id))">rename</button>
                     <button type="submit" asp-page-handler="RemoveField" asp-route-id=@Model.AllFields[i].Id>remove</button>
@@ -57,27 +57,74 @@
     <aside>
         <h3>Cheat Sheet</h3>
         @foreach(var function in Model.Functions) {
-            <div>
-                <span draggable="true" data-name="@function.Value" ondragstart="dragStart(event,'function')">⩨</span>
-                @function.Key
+            <div class="function" title="@function.tooltip">
+                <span draggable="true" data-name="@function.equation" ondragstart="dragStart(event,'function',' @function.tooltip')">≡</span>
+                @function.name
+                <button onclick="pickValue('@function.equation','function',event)">⩨</button>
             </div>
         }
     </aside>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
-<script>
-    new Sortable(document.getElementById('fields'), {
-        handle: '.handle',
-        ghostClass: 'blue-background-class',
-        animation: 150,
-        filter: 'input, button',
-        preventOnFilter: false
+<script>//All of this javascript can be replaced by the more modern AJAX Framework
+    let lastFocusedInput = null;
+
+    document.querySelectorAll('input[class="completable"]').forEach(input => {
+        input.addEventListener('focus', (e) => {
+            lastFocusedInput = e.target;
+        });
     });
 
-    function dragStart(event,type) {
+    function pickValue(text,type,event) {
+        event.preventDefault();
+        const input = lastFocusedInput;
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        if(type === 'function'){
+            input.value = input.value.substring(0, start) + " " + text + " " + input.value.substring(end);
+        }else{
+            input.value = input.value.substring(0, start) + " [" + text + "] " + input.value.substring(end);
+        }
+        if (type === 'function'){
+            if (text.includes(',')){
+                input.selectionStart = input.selectionEnd = start + text.length - 1;
+            }else{
+                input.selectionStart = input.selectionEnd = start + text.length;
+            }
+        }else{
+            input.selectionStart = input.selectionEnd = start + text.length + 4;
+        }
+        input.focus();
+    }
+
+    function dragStart(event,type,tooltip) {
         event.dataTransfer.setData("name", event.currentTarget.dataset.name);
         event.dataTransfer.setData("type", type);
+        event.dataTransfer.setData("tooltip", tooltip);
+
+        const dragIcon = document.createElement("div");
+        dragIcon.style.width = "fit-content";
+        dragIcon.style.height = "30px";
+        
+        dragIcon.style.color = "white";
+        dragIcon.style.borderRadius = "5px";
+        dragIcon.style.fontWeight = "bold";
+        
+        
+        if(type == 'function'){
+            dragIcon.style.backgroundColor = "blue";
+            dragIcon.innerText = tooltip;
+        }else{
+            dragIcon.style.backgroundColor = "red";
+            dragIcon.innerText = event.dataTransfer.getData("name");
+        }
+        document.body.appendChild(dragIcon);
+
+        // Set the drag image
+        event.dataTransfer.setDragImage(dragIcon, 0, 30);
+
+        // Remove it after a tiny delay so it doesn't stay in the DOM
+        setTimeout(() => document.body.removeChild(dragIcon), 0);
     }
 
     function allowDrop(event) {
@@ -89,7 +136,11 @@
         const end = input.selectionEnd;
         const draggedName = event.dataTransfer.getData("name");
         const type  = event.dataTransfer.getData("type");
-        input.value = input.value.substring(0, start) + text + input.value.substring(end);
+        if(input === lastFocusedInput){
+            input.value = input.value.substring(0, start) + text + input.value.substring(end);
+        }else{
+            input.value += text;
+        }
         if (type === 'function'){
             if (draggedName.includes(',')){
                 input.selectionStart = input.selectionEnd = start + text.length - 3;
@@ -100,7 +151,6 @@
             input.selectionStart = input.selectionEnd = start + text.length;
         }
         input.focus();
-        
     }
 
     function dropValue(event) {

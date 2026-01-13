@@ -49,3 +49,7 @@ div .Field * {
 div .Field input{
     width: 50%;
 }
+
+aside .function{
+    width:fit-content;
+}
