@@ -1,5 +1,7 @@
 html {
-  font-size: 14px;
+    font-size: 14px;
+
+        
 }
 
 @media (min-width: 768px) {
@@ -21,6 +23,7 @@ aside {
     flex: 1;
     background-color: lightgray;
     padding: 15px;
+    overflow-y: auto;
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
@@ -33,7 +36,7 @@ html {
 }
 
 body {
-  margin-bottom: 60px;
+    margin-bottom: 60px;
 }
 
 div .Field {

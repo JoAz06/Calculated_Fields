@@ -1,7 +1,7 @@
 ﻿namespace Calculated_Fields.Data.Exceptions {
     public class CircularException : Exception {
         public CircularException()
-        : base("Circular reference occured.") {
+        : base("#CIRCULAR!") {
         }
 
         public CircularException(string message)

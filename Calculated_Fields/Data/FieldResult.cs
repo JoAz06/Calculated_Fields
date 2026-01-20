@@ -9,12 +9,12 @@ namespace Calculated_Fields.Data {
             this.valid = valid;
             this.result = result;
         }
-
+   
         public override string ToString() {
             if (valid) {
-                return "Result : "+result;
+                return result;
             } else {
-                return "An error ocurred : "+result;
+                return result;
             }
         }
     }

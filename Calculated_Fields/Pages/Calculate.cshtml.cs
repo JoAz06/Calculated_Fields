@@ -1,4 +1,3 @@
-using Antlr.Runtime.Collections;
 using Calculated_Fields.Data;
 using Calculated_Fields.Data.Exceptions;
 using Calculated_Fields.Models;
@@ -7,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using NCalc;
+using NCalc.Exceptions;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.Eventing.Reader;
@@ -23,35 +23,33 @@ namespace Calculated_Fields.Pages{
             Results ??= new Dictionary<int, FieldResult>();
         }
 
-        [BindProperty(SupportsGet = true)]
         public List<TextField> AllFields { get; set; }
         public Dictionary<int, FieldResult> Results { get; set; }
-
-        public List<(string name, string equation, string tooltip)> Functions = new List<(string name, string, string tooltip)> {
-            ("Abs", "Abs()", "Abs(number)"),
-            ("Acos", "Acos()", "Acos(number)"),
-            ("Asin", "Asin()", "Asin(number)"),
-            ("Atan", "Atan()", "Atan(number)"),
-            ("Average (Custom)", "Average(,)", "Average(a,b,...)"),
-            ("Ceiling", "Ceiling()", "Ceiling(number)"),
-            ("Cos", "Cos()", "Cos(number)"),
-            ("Exp", "Exp()", "Exp(number)"),
-            ("Floor", "Floor()", "Floor(number)"),
-            ("IEEERemainder", "IEEERemainder(,)", "IEEERemainder(numerator,devider)"),
-            ("if", "if(,,)", "if(condition,true,false)"),
-            ("Ln", "Ln()", "if(number)"),
-            ("Log", "Log(,)", "Log(number,base)"),
-            ("Log10", "Log10()", "Log10(number)"),
-            ("Max (Custom)", "Max(,)", "Max(a,b,...)"),
-            ("Min (Custom)", "Min(,)", "Min(a,b,...)"),
-            ("Pow", "Pow(,)", "Pow(number,power)"),
-            ("Round", "Round()", "Round(number)"),
-            ("Sign", "Sign()", "Sign(number)"),
-            ("Sin", "Sin()", "Sin(number)"),
-            ("Sqrt", "Sqrt()", "Sqrt(number)"),
-            ("Sum (Custom)", "Sum(,)", "Sum(a,b,...)"),
-            ("Tan", "Tan()", "Tan(number)"),
-            ("Truncate", "Truncate()", "Truncate(number)")
+        public List<FunctionInfo> Functions { get; set; } = new List<FunctionInfo> {
+            new("Abs", "Abs()", "Abs(number)"),
+            new("Acos", "Acos()", "Acos(number)"),
+            new("Asin", "Asin()", "Asin(number)"),
+            new("Atan", "Atan()", "Atan(number)"),
+            new("Avg", "Avg(,)", "Avg(a,b,...)"),
+            new("Ceiling", "Ceiling()", "Ceiling(number)"),
+            new("Cos", "Cos()", "Cos(number)"),
+            new("Exp", "Exp()", "Exp(number)"),
+            new("Floor", "Floor()", "Floor(number)"),
+            new("IEEERemainder", "IEEERemainder(,)", "IEEERemainder(numerator,devider)"),
+            new("if", "if(,,)", "if(condition,true,false)"),
+            new("Ln", "Ln()", "if(number)"),
+            new("Log", "Log(,)", "Log(number,base)"),
+            new("Log10", "Log10()", "Log10(number)"),
+            new("Max", "Max(,)", "Max(a,b,...)"),
+            new("Min", "Min(,)", "Min(a,b,...)"),
+            new("Pow", "Pow(,)", "Pow(number,power)"),
+            new("Round", "Round()", "Round(number)"),
+            new("Sign", "Sign()", "Sign(number)"),
+            new("Sin", "Sin()", "Sin(number)"),
+            new("Sqrt", "Sqrt()", "Sqrt(number)"),
+            new("Sum", "Sum(,)", "Sum(a,b,...)"),
+            new("Tan", "Tan()", "Tan(number)"),
+            new("Truncate", "Truncate()", "Truncate(number)")
         };
 
         public async Task<IActionResult> OnGetAsync() {
@@ -65,19 +63,63 @@ namespace Calculated_Fields.Pages{
         }
 
         public async Task<IActionResult> OnPostCalculateAsync() {
-            foreach (TextField field in AllFields) {
-                var toBeUpdated = _context.TextField.Find(field.Id);
-                if (toBeUpdated != null) {
-                    toBeUpdated.name = field.name.Trim();
-                    toBeUpdated.value = field.value;
-                    if (toBeUpdated.type.Equals(Calculated_Fields.Models.Type.CALCULATED)) {
-                        Calculate(toBeUpdated);
+            AllFields = await _context.TextField.ToListAsync();
+            foreach (var field in AllFields) {
+                var key = $"fieldValue_{field.Id}";
+                if (Request.Form.TryGetValue(key, out var value)) {
+                    if (value.ToString().Equals(null) || value.Equals("")) {
+                        Results[field.Id] = new FieldResult(false, "#NULL!");
+                        field.value = 0.ToString();
+                    }
+                    else {
+                        field.value = value;
+                        field.name = Request.Form[$"fieldName_{field.Id}"].ToString().Trim();
+                        if (field.type == Calculated_Fields.Models.Type.CALCULATED) {
+                            Calculate(field);
+                        }   
                     }
                 }
             }
-            _context.SaveChanges();
+
+            await _context.SaveChangesAsync();
             AllFields = await _context.TextField.ToListAsync();
             return Page();
+        }
+
+        public async Task<IActionResult> OnGetUpdateAsync(int Id, string name, string value) {
+            Console.WriteLine(value);
+            AllFields = await _context.TextField.ToListAsync();
+            if (! AllFields.Any(x => x.Id == Id)) {
+                return new JsonResult(new {
+                    success = false,
+                    error = "TextField does not exist"
+                }) {
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
+            else if (string.IsNullOrWhiteSpace(name)) {
+                return new JsonResult(new {
+                    success = false,
+                    error = "Invalid name"
+                }) {
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
+            else if (string.IsNullOrWhiteSpace(value)) {
+                value = 0.ToString();
+            }
+            TextField toBeUpdated = _context.TextField.Find(Id);
+            toBeUpdated.name = name.Trim();
+            toBeUpdated.value = value;
+            _context.TextField.Update(toBeUpdated);
+            await _context.SaveChangesAsync();
+            Calculate(toBeUpdated);
+            return new JsonResult(new {
+                success = true,
+                data = Results[Id]
+            }) {
+                StatusCode = StatusCodes.Status200OK
+            };
         }
 
         public async Task<IActionResult> OnPostAddFieldAsync(string name, string value, string type) {
@@ -85,7 +127,7 @@ namespace Calculated_Fields.Pages{
             if (string.IsNullOrWhiteSpace(name) || AllFields.Contains(new TextField(name, "0", false))) {
                 return RedirectToPage();
             }
-            if (string.IsNullOrWhiteSpace(value)) {
+            else if (string.IsNullOrWhiteSpace(value)) {
                 value = 0.ToString();
             }
             TextField newTextField = new(name.Trim(),value,string.Equals(type,"on"));
@@ -110,127 +152,128 @@ namespace Calculated_Fields.Pages{
             try {
                 Results[toBeUpdated.Id] = Calculate(toBeUpdated, callStack);
             }
-            catch (CircularException ex) {
-                Results[toBeUpdated.Id] = new FieldResult(false, "Circular reference occured");
-            }
-            catch (MissingFieldException ex) {
-                Results[toBeUpdated.Id] = new FieldResult(false, "Variable does not exist");
-            }
-            catch (NCalc.EvaluationException ex) {
-                Results[toBeUpdated.Id] = new FieldResult(false, "Invalid Syntax");
-            }
             catch (Exception ex) {
-                Results[toBeUpdated.Id] = new FieldResult(false, ex.Message);
+                switch (ex.GetType().Name) {
+                    case "CircularException":
+                        Results[toBeUpdated.Id] = new FieldResult(false, "#CIRCULAR!");
+                    break;
+                    case "NCalcFunctionNotFoundException":
+                        Results[toBeUpdated.Id] = new FieldResult(false, "#NAME?");
+                        break;
+                    case "NCalcParameterNotDefinedException":
+                        Results[toBeUpdated.Id] = new FieldResult(false, "#REF!");
+                        break;
+                    case "NCalcParserException":
+                        Results[toBeUpdated.Id] = new FieldResult(false, "#SYNTAX!");
+                        break;
+                    case "NCalcEvaluationException":
+                        Results[toBeUpdated.Id] = new FieldResult(false, "#VALUE!");
+                        break;
+                    case "FormatException":
+                        Results[toBeUpdated.Id] = new FieldResult(false, "#CALC!");
+                        break;
+                    default:
+                        Results[toBeUpdated.Id] = new FieldResult(false, ex.Message);
+                    break;
+                }
             }
         }
 
         private FieldResult Calculate(TextField toBeUpdated, HashSet<string> callStack) {
-            try {
-                if (Results.ContainsKey(toBeUpdated.Id)) {
-                    return Results[toBeUpdated.Id];
-                }
-                else if (callStack.Contains(toBeUpdated.name)) {
-                    throw new CircularException();
-                }
-                else {
-                    callStack.Add(toBeUpdated.name);
-                    var expression = new Expression(toBeUpdated.value);
-                    expression.EvaluateParameter += (name, args) => {
-                        TextField internalField = AllFields.FirstOrDefault(field => field.name == name);
-                        if (internalField == null) {
-                            throw new MissingFieldException();
-                        }
-                        else {
-                            FieldResult result = Calculate(internalField, callStack);
-                            if (result.valid) {
-                                args.Result = double.Parse(Calculate(internalField, callStack).result);
-                            }
-                            else if (result.result.Equals("Circular reference occured")) {
-                                throw new CircularException();
-                            }
-                            else if (result.result.Equals("Variable does not exist")) {
-                                throw new MissingFieldException();
-                            }
-                        }
-                    };
-                    expression.EvaluateFunction += (name, args) =>
-                    {
-                        switch (name) {
-                            case "Sum":
-                                if (args.Parameters.Length < 2) {
-                                    throw new Exception("Minimum number of arguments is 2.");
-                                }
-                                double sum = 0;
-                                foreach (var argument in args.Parameters) {
-                                    sum+= double.Parse(argument.Evaluate().ToString()!);
-                                }
-                                args.Result = sum;
-                                break;
-                            case "Avg":
-                                if (args.Parameters.Length < 2) {
-                                    throw new Exception("Minimum number of arguments is 2.");
-                                }
-                                sum = 0;
-                                foreach (var argument in args.Parameters) {
-                                    sum += double.Parse(argument.Evaluate().ToString()!);
-                                }
-                                args.Result = sum/args.Parameters.Length;
-                                break;
-                            case "Max":
-                                if (args.Parameters.Length < 2) {
-                                    throw new Exception("Minimum number of arguments is 2.");
-                                }
-                                double max = double.NaN;
-                                foreach (var argument in args.Parameters) {
-                                    if(max.Equals(double.NaN))
-                                        max = double.Parse(argument.Evaluate().ToString()!);
-                                    else {
-                                        double current = double.Parse(argument.Evaluate().ToString()!);
-                                        if (current > max) {
-                                            max = current;
-                                        }
-                                    }
-                                }
-                                args.Result = max;
-                                break;
-                            case "Min":
-                                if (args.Parameters.Length < 2) {
-                                    throw new Exception("Minimum number of arguments is 2.");
-                                }
-                                double min = double.NaN;
-                                foreach (var argument in args.Parameters) {
-                                    if (min.Equals(double.NaN))
-                                        max = double.Parse(argument.Evaluate().ToString()!);
-                                    else {
-                                        double current = double.Parse(argument.Evaluate().ToString()!);
-                                        if (current < min) {
-                                            min = current;
-                                        }
-                                    }
-                                }
-                                args.Result = min;
-                                break;
-                        }
-                    };
-
-                    double result;
-                    try {
-                        result = double.Parse(expression.Evaluate().ToString()!);
-                    }catch (NCalc.EvaluationException ex) {
-                        Results[toBeUpdated.Id] = new FieldResult(false, "Invalid Syntax");
-                        throw ex;
-                    }catch(Exception ex) {
-                        Results[toBeUpdated.Id] = new FieldResult(false, ex.Message);
-                        throw ex;
-                    }
-                    callStack.Remove(toBeUpdated.name);
-                    Results[toBeUpdated.Id] = new FieldResult(true, result.ToString());
-                    return Results[toBeUpdated.Id];
-                }
+            if (Results.ContainsKey(toBeUpdated.Id)) {
+                return Results[toBeUpdated.Id];
             }
-            catch (Exception ex) {
-                Results[toBeUpdated.Id] = new FieldResult(false, ex.Message);
-                throw ex;
+            else if (callStack.Contains(toBeUpdated.name)) {
+                throw new CircularException();
+            }
+            else {
+                callStack.Add(toBeUpdated.name);
+                var expression = new Expression(toBeUpdated.value);
+                expression.EvaluateParameter += (name, args) => {
+                    TextField internalField = AllFields.FirstOrDefault(field => field.name == name);
+                    if (internalField == null) {
+                        throw new NCalcParameterNotDefinedException(name);
+                    }
+                    else {
+                        FieldResult result = Calculate(internalField, callStack);
+                        if (result.valid) {
+                            args.Result = result.result;
+                        }
+                        else if (result.result.Equals("#CIRCULAR!")) {
+                            throw new CircularException();
+                        }
+                        else if (result.result.Equals("#REF!")) {
+                            throw new NCalcParameterNotDefinedException("#REF!");
+                        }
+                    }
+                };
+                expression.EvaluateFunction += (name, args) =>
+                {
+                    switch (name.ToLower()) {
+                        case "sum":
+                            if (args.Parameters.Length < 1) {
+                                throw new NCalcParserException("#SYNTAX!");
+                            }
+                            double sum = 0;
+                            foreach (var argument in args.Parameters) {
+                                sum+= double.Parse(argument.Evaluate().ToString()!);
+                            }
+                            args.Result = sum;
+                        break;
+                        case "avg":
+                            if (args.Parameters.Length < 1) {
+                                throw new NCalcParserException("#SYNTAX!");
+                            }
+                            sum = 0;
+                            foreach (var argument in args.Parameters) {
+                                sum += double.Parse(argument.Evaluate().ToString()!);
+                            }
+                            args.Result = sum/args.Parameters.Length;
+                        break;
+                        case "max":
+                            if (args.Parameters.Length < 1) {
+                                throw new NCalcParserException("#SYNTAX!");
+                            }
+                            double max = double.NaN;
+                            foreach (var argument in args.Parameters) {
+                                if(max.Equals(double.NaN))
+                                    max = double.Parse(argument.Evaluate().ToString()!);
+                                else {
+                                    double current = double.Parse(argument.Evaluate().ToString()!);
+                                    if (current > max) {
+                                        max = current;
+                                    }
+                                }
+                            }
+                            args.Result = max;
+                        break;
+                        case "min":
+                            if (args.Parameters.Length < 1) {
+                                throw new NCalcParserException("#SYNTAX!");
+                            }
+                            double min = double.NaN;
+                            foreach (var argument in args.Parameters) {
+                                if (min.Equals(double.NaN))
+                                    min = double.Parse(argument.Evaluate().ToString()!);
+                                else {
+                                    double current = double.Parse(argument.Evaluate().ToString()!);
+                                    if (current < min) {
+                                        min = current;
+                                    }
+                                }
+                            }
+                            args.Result = min;
+                        break;
+                    }
+                };
+                string result;
+                result = expression.Evaluate().ToString();
+                if(result == null) {
+                    throw new Exception("Null");
+                }
+                callStack.Remove(toBeUpdated.name);
+                Results[toBeUpdated.Id] = new FieldResult(true, result.ToString());
+                return Results[toBeUpdated.Id];
             }
         }
     }
