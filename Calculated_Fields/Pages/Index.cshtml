@@ -373,7 +373,7 @@
 
     function insertAtCursor(input, text){
         const start = lastStartSelect;
-        const end = lastEndSelect;
+        const end = start;
         const draggedName = event.dataTransfer.getData("name");
         const type  = event.dataTransfer.getData("type");
         input.focus();
@@ -386,11 +386,12 @@
             if (draggedName.includes(',')){
                 input.selectionStart = input.selectionEnd = start + text.length - 3;
             }else{
-                input.selectionStart = input.selectionEnd = start + text.length - 1;
+                input.selectionStart = input.selectionEnd = start + text.length - 2;
             }
         }else{
-            input.selectionStart = input.selectionEnd = start + text.length + 2;
+            input.selectionStart = input.selectionEnd = start + text.length + 1;
         }
+        console.log(start+"\t"+text.length);
         input.focus();
         lastStartSelect = input.selectionStart;
         lastEndSelect = input.selectionEnd;
