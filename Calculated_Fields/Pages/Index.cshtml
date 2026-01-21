@@ -21,7 +21,7 @@
                     <div class="Field list-group-item">
                     <span draggable="true" data-name="@Model.AllFields[i].name" ondragstart="dragStart(event,'data')">⩨</span>
                     <button onclick="pickValue('@Model.AllFields[i].name','data',event)">▨</button>
-                        <label for="AllFields[@i].name" id="fieldLabel_@Model.AllFields[i].Id">@Model.AllFields[i].name :</label>
+                    <label for="AllFields[@i].name" id="fieldLabel_@Model.AllFields[i].Id">@Model.AllFields[i].name :</label>
                     @{if(Model.AllFields[i].type.Equals(Calculated_Fields.Models.Type.CALCULATED)){
                         <input type="text" data-target="fieldValue_@Model.AllFields[i].Id" ondragover="allowDrop(event)" ondrop="dropValue(event)" class="completable calculated" value=@(Model.Results.GetValueOrDefault(Model.AllFields[i].Id)) />
                         <input type="hidden" id="fieldValue_@Model.AllFields[i].Id" name="fieldValue_@Model.AllFields[i].Id" value="@(Model.AllFields[i].value)" />
@@ -82,9 +82,6 @@
     const functions = @Html.Raw(
         System.Text.Json.JsonSerializer.Serialize(Model.Functions)
     );
-    const results = @Html.Raw(
-        System.Text.Json.JsonSerializer.Serialize(Model.Results)
-    );
 
     tippy('[data-tippy-content]',{
         placement: 'right',
@@ -97,19 +94,19 @@
         trigger: 'focus'
     });
     
-    let lastFocusedInput = null;
-    let activeInput = null;
+    let previousinput = null;
+    let currentinput = null;
     let lastStartSelect;
     let lastEndSelect;
     
     
     function updateTooltip(){
-        if(!activeInput){
-            //activeInput._tippy.hide(); ------------------
+        if(!currentinput){
+            //currentinput._tippy.hide();
             return;
         } 
-        const cursorPos = activeInput.selectionStart;
-        const value = activeInput.value;
+        const cursorPos = currentinput.selectionStart;
+        const value = currentinput.value;
 
         const textBeforeCursor = value.substring(0, cursorPos);
 
@@ -120,10 +117,10 @@
         // Find the function
         const func = functions.find(x => x.name.toLowerCase()+"(" === textUpToCursor.toLowerCase());
         if(func){
-            activeInput._tippy.setContent(func.tooltip);
-            activeInput._tippy.show();
+            currentinput._tippy.setContent(func.tooltip);
+            currentinput._tippy.show();
         }else{
-            activeInput._tippy.hide();
+            currentinput._tippy.hide();
         }
     }
 
@@ -154,102 +151,99 @@
     const tribute = new Tribute({
         selectOnEnter : false,
         collection: [
-        {
-            trigger: " ",
-            values: AllTributeValues,
-            noMatchTemplate: "",
-            selectTemplate: function (item) {
-                const element = tribute.current.element;
-                if(item.original.tooltip.length > 0){
-                    setTimeout( () => {
-                        const cursorPos = element.selectionStart;
-                        if(item.original.value.includes(',')){
-                            element.setSelectionRange(cursorPos-3,cursorPos-3);
-                        }
-                        else{
-                            element.setSelectionRange(cursorPos-2,cursorPos-2);
-                        }
-                        updateTooltip();
-                    },0);
+            {
+                trigger: " ",
+                values: AllTributeValues,
+                selectTemplate: function (item) {
+                    const element = tribute.current.element;
+                    if(item.original.tooltip.length > 0){
+                        setTimeout( () => {
+                            const cursorPos = element.selectionStart;
+                            if(item.original.value.includes(',')){
+                                element.setSelectionRange(cursorPos-3,cursorPos-3);
+                            }
+                            else{
+                                element.setSelectionRange(cursorPos-2,cursorPos-2);
+                            }
+                            updateTooltip();
+                        },0);
+                    }
+                    return item.original.value;
+                },
+                selectClass: '.completable',
+                menuItemTemplate: function (item) {
+                    if(item.original.tooltip.length > 0){
+                        return '<div title="'+item.original.tooltip+'">'+item.string+'</div>';}
+                    else{
+                        return item.string;
+                    }
                 }
-                return item.original.value;
             },
-            selectClass: '.completable',
-            menuItemTemplate: function (item) {
-                if(item.original.tooltip.length > 0){
-                    return '<div title="'+item.original.tooltip+'">'+item.string+'</div>';}
-                else{
-                    return item.string;
+            {
+                trigger: "(",
+                values: AllTributeValues,
+                selectTemplate: function (item) {
+                    const element = tribute.current.element;
+                    if(item.original.tooltip.length > 0){
+                        setTimeout( () => {
+                            const cursorPos = element.selectionStart;
+                            if(item.original.value.includes(',')){
+                                element.setSelectionRange(cursorPos-3,cursorPos-3);
+                            }
+                            else{
+                                element.setSelectionRange(cursorPos-2,cursorPos-2);
+                            }
+                            updateTooltip();
+                        },0);
+                    }
+                    return "("+item.original.value;
+                },
+                selectClass: '.completable',
+                menuItemTemplate: function (item) {
+                    if(item.original.tooltip.length > 0){
+                        return '<div title="'+item.original.tooltip+'">'+item.string+'</div>';}
+                    else{
+                        return item.string;
+                    }
                 }
-            }
-        },
-        {
-            trigger: "(",
-            values: AllTributeValues,
-            noMatchTemplate: "",
-            selectTemplate: function (item) {
-                const element = tribute.current.element;
-                if(item.original.tooltip.length > 0){
-                    setTimeout( () => {
-                        const cursorPos = element.selectionStart;
-                        if(item.original.value.includes(',')){
-                            element.setSelectionRange(cursorPos-3,cursorPos-3);
-                        }
-                        else{
-                            element.setSelectionRange(cursorPos-2,cursorPos-2);
-                        }
-                        updateTooltip();
-                    },0);
-                }
-                return "("+item.original.value;
             },
-            selectClass: '.completable',
-            menuItemTemplate: function (item) {
-                if(item.original.tooltip.length > 0){
-                    return '<div title="'+item.original.tooltip+'">'+item.string+'</div>';}
-                else{
-                    return item.string;
+            {
+                trigger: ",",
+                values: AllTributeValues,
+                selectTemplate: function (item) {
+                    const element = tribute.current.element;
+                    if(item.original.tooltip.length > 0){
+                        setTimeout( () => {
+                            const cursorPos = element.selectionStart;
+                            if(item.original.value.includes(',')){
+                                element.setSelectionRange(cursorPos-3,cursorPos-3);
+                            }
+                            else{
+                                element.setSelectionRange(cursorPos-2,cursorPos-2);
+                            }
+                            updateTooltip();
+                        },0);
+                    }
+                    return ","+item.original.value;
+                },
+                selectClass: '.completable',
+                menuItemTemplate: function (item) {
+                    if(item.original.tooltip.length > 0){
+                        return '<div title="'+item.original.tooltip+'">'+item.string+'</div>';}
+                    else{
+                        return item.string;
+                    }
                 }
-            }
-        },
-        {
-            trigger: ",",
-            values: AllTributeValues,
-            noMatchTemplate: "",
-            selectTemplate: function (item) {
-                const element = tribute.current.element;
-                if(item.original.tooltip.length > 0){
-                    setTimeout( () => {
-                        const cursorPos = element.selectionStart;
-                        if(item.original.value.includes(',')){
-                            element.setSelectionRange(cursorPos-3,cursorPos-3);
-                        }
-                        else{
-                            element.setSelectionRange(cursorPos-2,cursorPos-2);
-                        }
-                        updateTooltip();
-                    },0);
-                }
-                return ","+item.original.value;
             },
-            selectClass: '.completable',
-            menuItemTemplate: function (item) {
-                if(item.original.tooltip.length > 0){
-                    return '<div title="'+item.original.tooltip+'">'+item.string+'</div>';}
-                else{
-                    return item.string;
+            {
+                trigger: '[',
+                values: ExpressionTributeValues,
+                selectTemplate: function (item) {
+                    return item.original.value;
                 }
             }
-        },
-        {
-            trigger: '[',
-            values: ExpressionTributeValues,
-            noMatchTemplate: "",
-            selectTemplate: function (item) {
-                return item.original.value;
-            }
-        }
         ],
+        noMatchTemplate: function () { return ''; },
         allowSpaces: true
     });
 
@@ -264,15 +258,21 @@
             hidden.value = input.value;
             const fieldId = input.dataset.target.replace('fieldValue_', '');
             const fieldName = document.getElementById("NameRename"+fieldId).value;
+            document.getElementById("fieldLabel_"+fieldId).innerText = fieldName + " :";
             const fieldValue = hidden.value;
             const path = "?handler=Update&Id="+encodeURIComponent(fieldId)+"&name="+encodeURIComponent(fieldName)+"&value="+encodeURIComponent(fieldValue);
             fetch(path)
                 .then(res => res.json())
                 .then(result => {
-                    input.value = result.data.result;
+                    for(var k in result.data){
+                        var now = document.querySelector('[data-target="fieldValue_'+k+'"]')
+                        if(now != currentinput || currentinput === previousinput){
+                            now.value = result.data[k].result;
+                        }
+                    }
                 });
-            lastFocusedInput = e.target;
-            activeInput = input;
+            previousinput = currentinput;
+            currentinput = input;
         });
     });
     document.querySelectorAll("form").forEach(form => {
@@ -288,18 +288,16 @@
             }
         });
         input.addEventListener("focus", (e) => {
-            lastFocusedInput = e.target;
-            activeInput = input;
+            previousinput = currentinput;
+            currentinput = e.target;
             lastStartSelect = e.target.selectionStart;
             lastEndSelect = e.target.selectionEnd;
             updateTooltip();
         });
-        input.addEventListener("tribute-no-match", function(e) {
-            tribute.hideMenu();
-        });
         input.addEventListener("input", (f) => {
             lastStartSelect = f.target.selectionStart;
             lastEndSelect = f.target.selectionEnd;
+            previousinput = currentinput;
             updateTooltip();
         });
         input.addEventListener("keyup", (f) => {
@@ -316,7 +314,7 @@
 
     function pickValue(text,type,event) {
         event.preventDefault();
-        const input = lastFocusedInput;
+        const input = currentinput;
         const start = lastStartSelect;
         const end = lastEndSelect;
         input.focus();
@@ -332,7 +330,7 @@
                 input.selectionStart = input.selectionEnd = start + text.length;
             }
         }else{
-            input.selectionStart = input.selectionEnd = start + text.length + 4;
+            input.selectionStart = input.selectionEnd = start + text.length + 5;
         }
         lastStartSelect = input.selectionStart;
         lastEndSelect = input.selectionEnd;
@@ -379,7 +377,7 @@
         const draggedName = event.dataTransfer.getData("name");
         const type  = event.dataTransfer.getData("type");
         input.focus();
-        if(input === lastFocusedInput){
+        if(input === currentinput){
             input.value = input.value.substring(0, start) + text + input.value.substring(end);
         }else{
             input.value += text;
@@ -388,14 +386,14 @@
             if (draggedName.includes(',')){
                 input.selectionStart = input.selectionEnd = start + text.length - 3;
             }else{
-                input.selectionStart = input.selectionEnd = start + text.length - 2;
+                input.selectionStart = input.selectionEnd = start + text.length - 1;
             }
         }else{
-            input.selectionStart = input.selectionEnd = start + text.length;
+            input.selectionStart = input.selectionEnd = start + text.length + 2;
         }
+        input.focus();
         lastStartSelect = input.selectionStart;
         lastEndSelect = input.selectionEnd;
-        input.focus();
     }
 
     function dropValue(event) {
@@ -403,8 +401,6 @@
         const draggedName = event.dataTransfer.getData("name");
         const type  = event.dataTransfer.getData("type");
         const input = event.target;
-        lastStartSelect = input.selectionStart;
-        lastEndSelect = input.selectionEnd;
         if(type === 'function'){
             insertAtCursor(input, " " + draggedName + " ");
         }else{

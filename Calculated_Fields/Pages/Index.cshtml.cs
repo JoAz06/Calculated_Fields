@@ -51,7 +51,6 @@ namespace Calculated_Fields.Pages{
             new("Tan", "Tan()", "Tan(number)"),
             new("Truncate", "Truncate()", "Truncate(number)")
         };
-        HashSet<int> used = new();
 
         public async Task<IActionResult> OnGetAsync() {
             AllFields = await _context.TextField.ToListAsync();
@@ -88,7 +87,6 @@ namespace Calculated_Fields.Pages{
         }
 
         public async Task<IActionResult> OnGetUpdateAsync(int Id, string name, string value) {
-            Console.WriteLine(value);
             AllFields = await _context.TextField.ToListAsync();
             if (! AllFields.Any(x => x.Id == Id)) {
                 return new JsonResult(new {
@@ -114,13 +112,41 @@ namespace Calculated_Fields.Pages{
             toBeUpdated.value = value;
             _context.TextField.Update(toBeUpdated);
             await _context.SaveChangesAsync();
-            Calculate(toBeUpdated);
+            Stack<int> dependents = new();
+            Dictionary<int, FieldResult> updatedResults = new();
+            CalculateDependency(toBeUpdated, dependents, updatedResults);
             return new JsonResult(new {
                 success = true,
-                data = Results[Id]
+                data = updatedResults
             }) {
                 StatusCode = StatusCodes.Status200OK
             };
+        }
+
+        public void CalculateDependency(TextField initialField, Stack<int> dependents, Dictionary<int, FieldResult> updatedResults) {
+            if (updatedResults.ContainsKey(initialField.Id))
+                return;
+            Calculate(initialField);
+            updatedResults[initialField.Id] = Results[initialField.Id];
+            foreach (var field in AllFields) {
+                if (field.type != Models.Type.CALCULATED)
+                    continue;
+                var expression = new Expression(field.value);
+                expression.EvaluateParameter += (name, args) => {
+                    var referenced = AllFields.FirstOrDefault(f => f.name == name);
+                    if (referenced == null) return;
+                    if (referenced.Id == initialField.Id)
+                        dependents.Push(field.Id);
+                };
+                try { expression.Evaluate(); }
+                catch {}
+            }
+            while (dependents.Count > 0) {
+                var dependentId = dependents.Pop();
+                var dependentField = AllFields.First(f => f.Id == dependentId);
+                CalculateDependency(dependentField,dependents,updatedResults);
+                updatedResults[dependentField.Id] = Results[dependentField.Id];
+            }
         }
 
         public async Task<IActionResult> OnPostAddFieldAsync(string name, string value, string type) {
@@ -150,9 +176,8 @@ namespace Calculated_Fields.Pages{
 
         public void Calculate(TextField toBeUpdated) {
             HashSet<string> callStack = new();
-            used.Clear();
             try {
-                Results[toBeUpdated.Id] = Calculate(toBeUpdated, callStack, used);
+                Results[toBeUpdated.Id] = Calculate(toBeUpdated, callStack);
             }
             catch (Exception ex) {
                 switch (ex.GetType().Name) {
@@ -181,7 +206,7 @@ namespace Calculated_Fields.Pages{
             }
         }
 
-        private FieldResult Calculate(TextField toBeUpdated, HashSet<string> callStack, HashSet<int> used) {
+        private FieldResult Calculate(TextField toBeUpdated, HashSet<string> callStack) {
             if (Results.ContainsKey(toBeUpdated.Id)) {
                 return Results[toBeUpdated.Id];
             }
@@ -197,7 +222,7 @@ namespace Calculated_Fields.Pages{
                         throw new NCalcParameterNotDefinedException(name);
                     }
                     else {
-                        FieldResult result = Calculate(internalField, callStack, used);
+                        FieldResult result = Calculate(internalField, callStack);
                         if (result.valid) {
                             args.Result = result.result;
                         }
@@ -274,7 +299,6 @@ namespace Calculated_Fields.Pages{
                     throw new Exception("Null");
                 }
                 callStack.Remove(toBeUpdated.name);
-                used.Add(toBeUpdated.Id);
                 Results[toBeUpdated.Id] = new FieldResult(true, result.ToString());
                 return Results[toBeUpdated.Id];
             }
