@@ -62,7 +62,7 @@ namespace Calculated_Fields.Pages {
             foreach (var field in AllFields) {
                 var key = $"fieldValue_{field.Id}";
                 if (Request.Form.TryGetValue(key, out var value)) {
-                    if (value.ToString().Equals(null) || value.Equals("")) {
+                    if (value.IsNullOrEmpty()) {
                         Results[field.Id] = new FieldResult(false, "#NULL!");
                         field.value = 0.ToString();
                     }
@@ -145,11 +145,8 @@ namespace Calculated_Fields.Pages {
 
         public async Task<IActionResult> OnPostAddFieldAsync(string name, string value, string type) {
             AllFields = await _context.TextField.ToListAsync();
-            if (string.IsNullOrWhiteSpace(name) || AllFields.Contains(new TextField(name, "0", false))) {
+            if (string.IsNullOrWhiteSpace(name) || AllFields.Contains(new TextField(name))) {
                 return RedirectToPage();
-            }
-            else if (string.IsNullOrWhiteSpace(value)) {
-                value = 0.ToString();
             }
             TextField newTextField = new(name.Trim(), value, string.Equals(type, "on"));
             _context.TextField.Add(newTextField);
@@ -211,7 +208,7 @@ namespace Calculated_Fields.Pages {
                 callStack.Add(toBeUpdated.name);
                 var expression = new Expression(toBeUpdated.value);
                 expression.EvaluateParameter += (name, args) => {
-                    TextField internalField = AllFields.FirstOrDefault(field => field.name == name);
+                    TextField internalField = AllFields.FirstOrDefault(field => field.name == name)!;
                     if (internalField == null) {
                         throw new NCalcParameterNotDefinedException(name);
                     }
@@ -276,7 +273,7 @@ namespace Calculated_Fields.Pages {
                                 if (min.Equals(double.NaN))
                                     min = double.Parse(argument.Evaluate()!.ToString()!);
                                 else {
-                                    double current = double.Parse(argument.Evaluate().ToString()!);
+                                    double current = double.Parse(argument.Evaluate()!.ToString()!);
                                     if (current < min) {
                                         min = current;
                                     }
@@ -287,7 +284,7 @@ namespace Calculated_Fields.Pages {
                     }
                 };
 
-                string result = expression.Evaluate().ToString();
+                string result = expression.Evaluate()!.ToString()!;
 
                 if (result == null) {
                     throw new Exception("Null");

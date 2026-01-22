@@ -19,9 +19,11 @@ namespace Calculated_Fields.Models
 
         public TextField() { }
 
-        public TextField(string name, string value, bool type) {
+        public TextField(string name, string value = "0", bool type = false) {
             this.name = name;
-            this.value = value;
+            if (string.IsNullOrWhiteSpace(value))
+                this.value = 0.ToString();
+            else this.value = value;
             if (type) {
                 this.type = Type.CALCULATED;
             } else {
