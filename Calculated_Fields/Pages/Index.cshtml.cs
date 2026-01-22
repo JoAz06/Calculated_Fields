@@ -4,13 +4,9 @@ using Calculated_Fields.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.IdentityModel.Tokens;
 using NCalc;
 using NCalc.Exceptions;
-using System.Collections;
-using System.Collections.Generic;
-using System.Diagnostics.Eventing.Reader;
-using System.Security.Cryptography.Xml;
 
 namespace Calculated_Fields.Pages{
     
@@ -72,7 +68,7 @@ namespace Calculated_Fields.Pages{
                         field.value = 0.ToString();
                     }
                     else {
-                        field.value = value;
+                        field.value = value!;
                         field.name = Request.Form[$"fieldName_{field.Id}"].ToString().Trim();
                         if (field.type == Calculated_Fields.Models.Type.CALCULATED) {
                             Calculate(field);
@@ -80,7 +76,6 @@ namespace Calculated_Fields.Pages{
                     }
                 }
             }
-
             await _context.SaveChangesAsync();
             AllFields = await _context.TextField.ToListAsync();
             return Page();
@@ -88,18 +83,15 @@ namespace Calculated_Fields.Pages{
 
         public async Task<IActionResult> OnGetUpdateAsync(int Id, string name, string value) {
             AllFields = await _context.TextField.ToListAsync();
-            if (! AllFields.Any(x => x.Id == Id)) {
+            string error = "";
+            if (!AllFields.Any(x => x.Id == Id))
+                error = "TextField does not exist";
+            else if (string.IsNullOrWhiteSpace(name))
+                error = "Invalid name";
+            if (! error.IsNullOrEmpty()) { 
                 return new JsonResult(new {
                     success = false,
-                    error = "TextField does not exist"
-                }) {
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
-            }
-            else if (string.IsNullOrWhiteSpace(name)) {
-                return new JsonResult(new {
-                    success = false,
-                    error = "Invalid name"
+                    error = error
                 }) {
                     StatusCode = StatusCodes.Status400BadRequest
                 };
@@ -107,7 +99,7 @@ namespace Calculated_Fields.Pages{
             else if (string.IsNullOrWhiteSpace(value)) {
                 value = 0.ToString();
             }
-            TextField toBeUpdated = _context.TextField.Find(Id);
+            TextField toBeUpdated = _context.TextField.Find(Id)!;
             toBeUpdated.name = name.Trim();
             toBeUpdated.value = value;
             _context.TextField.Update(toBeUpdated);
@@ -243,7 +235,7 @@ namespace Calculated_Fields.Pages{
                             }
                             double sum = 0;
                             foreach (var argument in args.Parameters) {
-                                sum+= double.Parse(argument.Evaluate().ToString()!);
+                                sum+= double.Parse(argument.Evaluate()!.ToString()!);
                             }
                             args.Result = sum;
                         break;
@@ -253,7 +245,7 @@ namespace Calculated_Fields.Pages{
                             }
                             sum = 0;
                             foreach (var argument in args.Parameters) {
-                                sum += double.Parse(argument.Evaluate().ToString()!);
+                                sum += double.Parse(argument.Evaluate()!.ToString()!);
                             }
                             args.Result = sum/args.Parameters.Length;
                         break;
@@ -264,9 +256,9 @@ namespace Calculated_Fields.Pages{
                             double max = double.NaN;
                             foreach (var argument in args.Parameters) {
                                 if(max.Equals(double.NaN))
-                                    max = double.Parse(argument.Evaluate().ToString()!);
+                                    max = double.Parse(argument.Evaluate()!.ToString()!);
                                 else {
-                                    double current = double.Parse(argument.Evaluate().ToString()!);
+                                    double current = double.Parse(argument.Evaluate()!.ToString()!);
                                     if (current > max) {
                                         max = current;
                                     }
@@ -281,7 +273,7 @@ namespace Calculated_Fields.Pages{
                             double min = double.NaN;
                             foreach (var argument in args.Parameters) {
                                 if (min.Equals(double.NaN))
-                                    min = double.Parse(argument.Evaluate().ToString()!);
+                                    min = double.Parse(argument.Evaluate()!.ToString()!);
                                 else {
                                     double current = double.Parse(argument.Evaluate().ToString()!);
                                     if (current < min) {

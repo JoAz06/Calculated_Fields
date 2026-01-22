@@ -27,7 +27,7 @@
                         <input type="hidden" id="fieldValue_@Model.AllFields[i].Id" name="fieldValue_@Model.AllFields[i].Id" value="@(Model.AllFields[i].value)" />
                     }
                     else{
-                        <input name="fieldValue_@Model.AllFields[i].Id" ondragover="allowDrop(event)" ondrop="dropValue(event)" class="completable" />
+                        <input name="fieldValue_@Model.AllFields[i].Id" ondragover="allowDrop(event)" ondrop="dropValue(event)" class="completable" value="@(Model.AllFields[i].value)" />
                     }
                     }
                     <input name="fieldValue_@Model.AllFields[i].Id" type="hidden"/>
@@ -98,6 +98,11 @@
     let currentinput = null;
     let lastStartSelect;
     let lastEndSelect;
+
+    function selectionUpdate(input){
+        lastStartSelect = input.selectionStart;
+        lastEndSelect = input.selectionEnd;
+    }
     
     
     function updateTooltip(){
@@ -146,7 +151,6 @@
             tooltip: functions[i].tooltip
         });
     }
-
 
     const tribute = new Tribute({
         selectOnEnter : false,
@@ -290,24 +294,20 @@
         input.addEventListener("focus", (e) => {
             previousinput = currentinput;
             currentinput = e.target;
-            lastStartSelect = e.target.selectionStart;
-            lastEndSelect = e.target.selectionEnd;
+            selectionUpdate(e.target);
             updateTooltip();
         });
-        input.addEventListener("input", (f) => {
-            lastStartSelect = f.target.selectionStart;
-            lastEndSelect = f.target.selectionEnd;
+        input.addEventListener("input", (e) => {
+            selectionUpdate(e.target);
             previousinput = currentinput;
             updateTooltip();
         });
-        input.addEventListener("keyup", (f) => {
-            lastStartSelect = f.target.selectionStart;
-            lastEndSelect = f.target.selectionEnd;
+        input.addEventListener("keyup", (e) => {
+            selectionUpdate(e.target);
             updateTooltip();
         });
-        input.addEventListener("click", (f) => {
-            lastStartSelect = f.target.selectionStart;
-            lastEndSelect = f.target.selectionEnd;
+        input.addEventListener("click", (e) => {
+            selectionUpdate(e.target);
             updateTooltip();
         });
     });
@@ -332,8 +332,7 @@
         }else{
             input.selectionStart = input.selectionEnd = start + text.length + 5;
         }
-        lastStartSelect = input.selectionStart;
-        lastEndSelect = input.selectionEnd;
+        selectionUpdate(input);
         input.focus();
     }
 
@@ -391,16 +390,15 @@
         }else{
             input.selectionStart = input.selectionEnd = start + text.length + 1;
         }
-        console.log(start+"\t"+text.length);
         input.focus();
-        lastStartSelect = input.selectionStart;
-        lastEndSelect = input.selectionEnd;
+        selectionUpdate(input);
     }
 
     function dropValue(event) {
         event.preventDefault();
         const draggedName = event.dataTransfer.getData("name");
         const type  = event.dataTransfer.getData("type");
+        if (!type) return;
         const input = event.target;
         if(type === 'function'){
             insertAtCursor(input, " " + draggedName + " ");
