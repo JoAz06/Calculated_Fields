@@ -8,12 +8,11 @@ using Microsoft.IdentityModel.Tokens;
 using NCalc;
 using NCalc.Exceptions;
 
-namespace Calculated_Fields.Pages{
-    
+namespace Calculated_Fields.Pages {
+
     public class CalculateModel : PageModel {
         private readonly Calculated_Fields.Data.CalculatedTextFieldContext _context;
-        public CalculateModel(Calculated_Fields.Data.CalculatedTextFieldContext context)
-        {
+        public CalculateModel(Calculated_Fields.Data.CalculatedTextFieldContext context) {
             _context = context;
             AllFields ??= new List<TextField>();
             Results ??= new Dictionary<int, FieldResult>();
@@ -69,10 +68,11 @@ namespace Calculated_Fields.Pages{
                     }
                     else {
                         field.value = value!;
-                        field.name = Request.Form[$"fieldName_{field.Id}"].ToString().Trim();
+                        if (!AllFields.Any(x => x.name == Request.Form[$"fieldName_{field.Id}"].ToString().Trim() && x.Id != field.Id))
+                            field.name = Request.Form[$"fieldName_{field.Id}"].ToString().Trim();
                         if (field.type == Calculated_Fields.Models.Type.CALCULATED) {
                             Calculate(field);
-                        }   
+                        }
                     }
                 }
             }
@@ -88,7 +88,9 @@ namespace Calculated_Fields.Pages{
                 error = "TextField does not exist";
             else if (string.IsNullOrWhiteSpace(name))
                 error = "Invalid name";
-            if (! error.IsNullOrEmpty()) { 
+            else if (AllFields.Any(x => x.name == name.Trim() && x.Id != Id))
+                error = "Name already exists";
+            if (!error.IsNullOrEmpty()) {
                 return new JsonResult(new {
                     success = false,
                     error = error
@@ -131,12 +133,12 @@ namespace Calculated_Fields.Pages{
                         dependents.Push(field.Id);
                 };
                 try { expression.Evaluate(); }
-                catch {}
+                catch { }
             }
             while (dependents.Count > 0) {
                 var dependentId = dependents.Pop();
                 var dependentField = AllFields.First(f => f.Id == dependentId);
-                CalculateDependency(dependentField,dependents,updatedResults);
+                CalculateDependency(dependentField, dependents, updatedResults);
                 updatedResults[dependentField.Id] = Results[dependentField.Id];
             }
         }
@@ -149,14 +151,14 @@ namespace Calculated_Fields.Pages{
             else if (string.IsNullOrWhiteSpace(value)) {
                 value = 0.ToString();
             }
-            TextField newTextField = new(name.Trim(),value,string.Equals(type,"on"));
+            TextField newTextField = new(name.Trim(), value, string.Equals(type, "on"));
             _context.TextField.Add(newTextField);
             await _context.SaveChangesAsync();
             return RedirectToPage();
         }
 
         public async Task<IActionResult> OnPostRemoveFieldAsync(int Id) {
-            if(_context.TextField.Find(Id) != null) {
+            if (_context.TextField.Find(Id) != null) {
                 _context.TextField.Remove(_context.TextField.Find(Id)!);
                 await _context.SaveChangesAsync();
             }
@@ -175,7 +177,7 @@ namespace Calculated_Fields.Pages{
                 switch (ex.GetType().Name) {
                     case "CircularException":
                         Results[toBeUpdated.Id] = new FieldResult(false, "#CIRCULAR!");
-                    break;
+                        break;
                     case "NCalcFunctionNotFoundException":
                         Results[toBeUpdated.Id] = new FieldResult(false, "#NAME?");
                         break;
@@ -193,7 +195,7 @@ namespace Calculated_Fields.Pages{
                         break;
                     default:
                         Results[toBeUpdated.Id] = new FieldResult(false, ex.Message);
-                    break;
+                        break;
                 }
             }
         }
@@ -226,8 +228,7 @@ namespace Calculated_Fields.Pages{
                         }
                     }
                 };
-                expression.EvaluateFunction += (name, args) =>
-                {
+                expression.EvaluateFunction += (name, args) => {
                     switch (name.ToLower()) {
                         case "sum":
                             if (args.Parameters.Length < 1) {
@@ -235,10 +236,10 @@ namespace Calculated_Fields.Pages{
                             }
                             double sum = 0;
                             foreach (var argument in args.Parameters) {
-                                sum+= double.Parse(argument.Evaluate()!.ToString()!);
+                                sum += double.Parse(argument.Evaluate()!.ToString()!);
                             }
                             args.Result = sum;
-                        break;
+                            break;
                         case "avg":
                             if (args.Parameters.Length < 1) {
                                 throw new NCalcParserException("#SYNTAX!");
@@ -247,15 +248,15 @@ namespace Calculated_Fields.Pages{
                             foreach (var argument in args.Parameters) {
                                 sum += double.Parse(argument.Evaluate()!.ToString()!);
                             }
-                            args.Result = sum/args.Parameters.Length;
-                        break;
+                            args.Result = sum / args.Parameters.Length;
+                            break;
                         case "max":
                             if (args.Parameters.Length < 1) {
                                 throw new NCalcParserException("#SYNTAX!");
                             }
                             double max = double.NaN;
                             foreach (var argument in args.Parameters) {
-                                if(max.Equals(double.NaN))
+                                if (max.Equals(double.NaN))
                                     max = double.Parse(argument.Evaluate()!.ToString()!);
                                 else {
                                     double current = double.Parse(argument.Evaluate()!.ToString()!);
@@ -265,7 +266,7 @@ namespace Calculated_Fields.Pages{
                                 }
                             }
                             args.Result = max;
-                        break;
+                            break;
                         case "min":
                             if (args.Parameters.Length < 1) {
                                 throw new NCalcParserException("#SYNTAX!");
@@ -282,14 +283,16 @@ namespace Calculated_Fields.Pages{
                                 }
                             }
                             args.Result = min;
-                        break;
+                            break;
                     }
                 };
-                string result;
-                result = expression.Evaluate().ToString();
-                if(result == null) {
+
+                string result = expression.Evaluate().ToString();
+
+                if (result == null) {
                     throw new Exception("Null");
                 }
+
                 callStack.Remove(toBeUpdated.name);
                 Results[toBeUpdated.Id] = new FieldResult(true, result.ToString());
                 return Results[toBeUpdated.Id];

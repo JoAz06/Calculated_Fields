@@ -11,11 +11,7 @@ namespace Calculated_Fields.Data {
         }
    
         public override string ToString() {
-            if (valid) {
-                return result;
-            } else {
-                return result;
-            }
+            return result;
         }
     }
 }
